@@ -1,0 +1,188 @@
+
+<script>
+  import Inputmask from 'inputmask';
+  import { defineComponent, ref, reactive, onUnmounted, onMounted, watch, toRaw } from "vue";
+
+export default defineComponent({
+  props: ['value'],
+  emits : ['input'],
+  setup(props, { emit }) {
+    const horaires = [
+      {'jour' : 'lundi', horaires : '1000130014002000'},
+      {'jour' : 'mardi', horaires : '1000130014002000'},
+      {'jour' : 'mercredi', horaires : '1000130014002000'},
+      {'jour' : 'jeudi', horaires : '1000130014002000'},
+      {'jour' : 'vendredi', horaires : '1000130014002000'},
+      {'jour' : 'samedi', horaires : '1000130014002000'},
+      {'jour' : 'dimanche', horaires : null }
+    ];
+    let results = reactive([...(JSON.parse(props.value) || horaires)]);
+    let backups = reactive([]);
+    const message=reactive([]);
+    let closedOnes = ref(horaires.map(c=> !c.horaires || c.horaires === ''));
+    const invalids = reactive([false,false,false,false,false,false,false])
+    let inputs = reactive([]);
+    let init = false;
+
+    const setInput = (el) => {
+      if (!el)
+        return;
+      const index = horaires?.findIndex?.(h => h.jour === el.id);
+      if (el && isFinite(index) && !inputs[index]) {
+          inputs[index]=new Inputmask('(Hh:Mm - Hh:Mm \\/ ){1,3}|(U)|(S)', { 
+          groupSeparator: "\\/ ",
+          jitMasking : true,
+          clearMaskOnLostFocus: false, 
+          clearIncomplete: false,
+          autoUnmask : true,
+          tabThrough: false,
+          nullable: true,
+          oncomplete: () => {
+            console.log('oncomplete');
+            results[index].horaires = inputs[index].unmaskedvalue();
+            inputs[index].setValue(results[index].horaires);
+            emit('input', JSON.stringify(toRaw(results)));
+          },
+          onKeyValidation: () => {
+            el.style.borderColor = isInvalid(index) ? 'red' : 'green'
+            results[index].horaires = inputs[index].unmaskedvalue();
+          },
+          definitions : {
+            'H' : { validator : "[0-2]" },
+            'h' : { validator : "[0-9]"},
+            'M' : { validator : "[0-5]" },
+            'm' : {validator : "[0-9]" },
+            'U' : { validator : "O" },
+            'S' : { validator : "I" }
+          }
+        }).mask(el);
+      }
+    };
+
+    const isInvalid = (index) => {
+      //results.forEach((r,i) => r.horaires = !!closedOnes.value[i] ? null : inputs[i].unmaskedvalue());
+      let orderedTimes;
+      const val = inputs[index].unmaskedvalue()
+      const length = val.length;
+      const vals = val.match(/.{1,4}/g)
+      if (vals && vals.length < 2)
+        orderedTimes = true;
+      else if (Array.isArray(vals) && vals.every(v => v.length === 4)) {
+        orderedTimes = ([...vals].sort((a,b) => a-b) + ' ') === vals + ' ';
+        if (!orderedTimes) {
+          message[index] = 'Les horaires doivent être ordonnés';
+        } else {
+          message[index] = '';
+        }
+      }
+      invalids[index] = !(orderedTimes && inputs[index].isValid() && ( (length % 8) ===0  || (length <= 1)));
+      return invalids[index];
+    } 
+
+    const handleClosed = (index) => {
+      if (!index)
+        return;
+      closedOnes.value[index] = !closedOnes.value[index];
+      if (!closedOnes.value[index]) {
+        results[index].horaires = backups[index];
+        inputs[index].setValue(backups[index]);
+      }
+      else {
+        backups[index] = inputs[index].unmaskedvalue() || null;
+        results[index].horaires = ''
+      }
+      emit('input', JSON.stringify(toRaw(results)))
+    }
+    onUnmounted(() => {
+      //props.value=JSON.stringify(results);
+      console.log('unmounted');
+      inputs = [];
+    });
+
+    watch(
+			() => props.value,
+			(newVal, oldVal) => {
+				if (oldVal === newVal) console.log('same picture');
+				else if (newVal && !init) {
+          console.log(JSON.parse(newVal));
+          results = reactive(JSON.parse(props.value));
+          closedOnes.value = horaires.map( (_,i) => !results[i] || !results[i].horaires || results[i].horaires === '' || results[i].horaires === "undefined");
+          console.log('closed mounted',closedOnes);
+          inputs.forEach((i,j) => inputs[j].setValue(results[j]?.horaires || ''));
+          init = true;
+				}
+			}
+		);
+
+    return {
+      setInput,
+      handleClosed,
+      results,
+      closedOnes,
+      message
+    }
+  }
+});
+</script>
+
+<template>
+  <div class="container">
+  <ul class="listhoraires">
+    <li class="item" v-for="(horaire, index) in results" >
+      <div class="liwrap">
+        <label for="horaire">Horaires du {{horaire.jour}}</label>
+        <input 
+          :disabled="closedOnes[index]"
+          :id="horaire.jour"
+          :ref="setInput"
+          name="horaire"
+        />
+        <span v-if="message[index]" class="message">{{message[index]}}</span>
+      </div>
+      <div class="liwrap">
+        <label for="closed">Fermé?</label>
+        <input name="closed" value="index" v-model="closedOnes[index]" type="checkbox" @click="handleClosed(index)" />
+      </div>
+    </li>
+  </ul>
+</div>
+</template>
+
+
+<style>
+
+.listhoraires {
+  display :flex;
+  flex-wrap: wrap;
+}
+.liwrap {
+  display :flex;
+  flex-direction: column;
+  margin-right: 1rem;
+  margin-bottom: 1rem;
+  width : 100%;
+}
+li {
+  display:flex;
+  flex-direction : row;
+  width: 100%;
+}
+input:disabled {
+  color : #777;
+  background : #333;
+}
+.liwrap input[type="text"] {
+  width: 100%;
+  border:1px solid;
+  border-radius: 4px;
+}
+.liwrap input[type="checkbox"] {
+  appearance: auto;
+  width: 2rem;
+  height: 2rem;
+}
+.message {
+  color : red;
+}
+</style>
+
