@@ -151,7 +151,7 @@ export default defineComponent({
 </script>
 
 <template>
-  <div class="container">
+  <div class="container-horaires">
     <div class="tg-list">
       <div class="tg-list-item">
         <h4>Activer Les horaires</h4>
@@ -195,12 +195,12 @@ export default defineComponent({
   margin-bottom: 1rem;
   width : 100%;
 }
-li {
+.listhoraires li {
   display:flex;
   flex-direction : row;
   width: 100%;
 }
-input:disabled {
+.liwrap input:disabled {
   color : #777;
   background : #333;
 }
@@ -214,7 +214,7 @@ input:disabled {
   width: 2rem;
   height: 2rem;
 }
-.message {
+.liwrap .message {
   color : red;
 }
 .redval-row {
